@@ -127,6 +127,70 @@ indented by one `tab-width'."
         (delete-char (- (point-at-bol) (point)))
         (indent-to tab-width)))))
 
+(defvar dockerfile-keyword-doc-table
+  (let ((table (make-hash-table :test 'equal)))
+    (puthash "FROM"
+             (concat (propertize "FROM" 'face 'font-lock-keyword-face)
+                     " <image>[:<tag> | @<digest>] ["
+                     (propertize "AS" 'face 'font-lock-keyword-face)
+                     " <name>]")
+             table)
+    (puthash "RUN"
+             (concat (propertize "RUN" 'face 'font-lock-keyword-face)
+                     " <command> | "
+                     "[\"<executable>\", \"<param>\", \"<param>\"]")
+             table)
+    (puthash "CMD"
+             (concat (propertize "CMD" 'face 'font-lock-keyword-face)
+                     " <command> | "
+                     "[\"<executable>\", \"<param>\", \"<param>\"]"
+                     "[\"<param>\", \"<param>\"]")
+             table)
+    (puthash "MAINTAINER"
+             (concat (propertize "MAINTAINER" 'face 'font-lock-keyword-face)
+                     " <name>")
+             table)
+    (puthash "EXPOSE"
+             (concat (propertize "EXPOSE" 'face 'font-lock-keyword-face)
+                     " <port> [<port>/<protocol>...]")
+             table)
+    (puthash "ENV"
+             (concat (propertize "ENV" 'face 'font-lock-keyword-face)
+                     " <key> <value> | <key>=<value> [<key>=<value>...]")
+             table)
+    (puthash "ADD"
+             (concat (propertize "ADD" 'face 'font-lock-keyword-face)
+                     " [--chown=<user>:<group>] <src>... <dest> | "
+                     "[\"<src>\",... \"<dest>\"]")
+             table)
+    (puthash "COPY"
+             (concat (propertize "COPY" 'face 'font-lock-keyword-face)
+                     " [--chown=<user>:<group>] <src>... <dest> | "
+                     "[\"<src>\",... \"<dest>\"]")
+             table)
+    (puthash "VOLUME"
+             (concat (propertize "VOLUME" 'face 'font-lock-keyword-face)
+                     " [\"<path>\", ...] | <path> ...")
+             table)
+    (puthash "WORKDIR"
+             (concat (propertize "WORKDIR" 'face 'font-lock-keyword-face)
+                     " <path>")
+             table)
+    table)
+  "Hash table of eldoc strings for Dockerfiles.
+
+Lightly modified from the reference docs at URL
+`https://docs.docker.com/engine/reference/builder/'.")
+
+(defun dockerfile-eldoc-function ()
+  "Provides reference documation for the keyword at point in
+Dockerfiles."
+  (let ((sym (thing-at-point 'symbol)))
+    (when (eq (get-char-property 0 'face sym)
+              'font-lock-keyword-face)
+      (gethash (substring-no-properties sym)
+               dockerfile-keyword-doc-table))))
+
 (defun dockerfile-build-arg-string ()
   "Create a --build-arg string for each element in `dockerfile-build-args'."
   (mapconcat (lambda (arg) (concat "--build-arg " (shell-quote-argument arg)))
@@ -193,7 +257,9 @@ If prefix arg NO-CACHE is set, don't cache the image."
   (set (make-local-variable 'font-lock-defaults)
        '(dockerfile-font-lock-keywords nil t))
   (setq local-abbrev-table dockerfile-mode-abbrev-table)
-  (setq indent-line-function #'dockerfile-indent-line-function))
+  (setq indent-line-function #'dockerfile-indent-line-function)
+  (add-function :before-until (local 'eldoc-documentation-function)
+                #'dockerfile-eldoc-function))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("Dockerfile\\(?:\\..*\\)?\\'" . dockerfile-mode))
